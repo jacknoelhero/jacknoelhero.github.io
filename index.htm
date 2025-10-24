@@ -154,10 +154,45 @@
         // Bật chế độ Debug cho Firebase
         setLogLevel('debug');
 
+        // ====================================================================================================
+        // !!! BƯỚC CẦN THIẾT NẾU CHẠY BÊN NGOÀI MÔI TRƯỜNG CANVAS (ví dụ: GitHub Pages) !!!
+        // Cấu hình Firebase này KHÔNG được cung cấp khi chạy trực tiếp trên Chrome.
+        // Vui lòng truy cập Firebase Console của bạn, tạo một ứng dụng Web, và dán
+        // cấu hình của bạn vào khối bên dưới (thay thế YOUR_API_KEY, YOUR_PROJECT_ID, v.v.).
+        // ====================================================================================================
+        const MANUAL_FIREBASE_CONFIG = {
+            import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCrzfouo7m58EpdWP67h9JAbPt51nah_Ag",
+  authDomain: "web-ban-hang-2025.firebaseapp.com",
+  projectId: "web-ban-hang-2025",
+  storageBucket: "web-ban-hang-2025.firebasestorage.app",
+  messagingSenderId: "339524592053",
+  appId: "1:339524592053:web:c7e070ffecf8302539f9fc"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+        };
+        // ====================================================================================================
+
         // Các biến toàn cục được cung cấp bởi môi trường Canvas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-inventory-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let firebaseConfig;
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            // Nếu chạy trong Canvas, sử dụng cấu hình được cung cấp
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+            // Nếu chạy độc lập, sử dụng cấu hình thủ công và cảnh báo người dùng
+            console.warn("Sử dụng CẤU HÌNH FIREBASE THỦ CÔNG. Vui lòng cập nhật các giá trị YOUR_... nếu chạy độc lập!");
+            firebaseConfig = MANUAL_FIREBASE_CONFIG;
+        }
 
         let app, db, auth;
         let userId = null;
@@ -207,6 +242,11 @@
         async function initFirebase() {
             showLoading(true);
             try {
+                // Kiểm tra xem người dùng đã thay thế cấu hình Placeholder chưa nếu chạy độc lập
+                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                    throw new Error("Cấu hình Firebase không hợp lệ. Vui lòng thay thế các giá trị YOUR_... trong khối MANUAL_FIREBASE_CONFIG bằng cấu hình thực tế của bạn.");
+                }
+
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -234,19 +274,20 @@
                             console.error("Lỗi đăng nhập ẩn danh:", error);
                             userStatusSpan.textContent = 'Lỗi xác thực!';
                             userIdSpan.textContent = `Vui lòng kiểm tra console.`;
-                            showCustomModal('Lỗi Xác Thực', 'Không thể đăng nhập vào hệ thống. Vui lòng kiểm tra kết nối.');
+                            showCustomModal('Lỗi Xác Thực', 'Không thể đăng nhập vào hệ thống. Vui lòng kiểm tra console log.');
                         }
                     }
                     showLoading(false);
                 });
 
-                // Nếu có token tùy chỉnh, sử dụng nó để đăng nhập
+                // Nếu có token tùy chỉnh (chỉ trong môi trường Canvas), sử dụng nó để đăng nhập
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 }
             } catch (error) {
                 console.error("Lỗi khởi tạo Firebase:", error);
-                showCustomModal('Lỗi Hệ Thống', 'Không thể khởi tạo Firebase. Vui lòng kiểm tra console log.');
+                // Cập nhật thông báo lỗi để hướng dẫn người dùng kiểm tra cấu hình
+                showCustomModal('Lỗi Hệ Thống', `Không thể khởi tạo Firebase. Vui lòng kiểm tra console log và đảm bảo bạn đã cung cấp cấu hình Firebase của mình nếu chạy độc lập. Chi tiết: ${error.message}`);
                 showLoading(false);
             }
         }
