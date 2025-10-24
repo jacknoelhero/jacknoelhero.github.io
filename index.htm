@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phần Mềm Quản Lý Kho Hàng</title>
+    <!-- Tải Tailwind CSS để tạo giao diện đẹp và responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Tải thư viện Font Awesome cho icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); }
+        .btn-primary { transition: background-color 0.15s; }
+        .btn-primary:hover { background-color: #3b82f6; }
+    </style>
+</head>
+<body>
+
+    <!-- Modal cho thông báo lỗi/thành công (thay thế cho alert()) -->
+    <div id="modal-container" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl w-11/12 max-w-sm card">
+            <h3 id="modal-title" class="text-xl font-bold mb-3 text-gray-800">Thông Báo</h3>
+            <p id="modal-message" class="text-gray-600 mb-4"></p>
+            <button id="modal-close-btn" class="w-full bg-blue-500 text-white py-2 rounded-lg font-semibold hover:bg-blue-600">Đóng</button>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Quản Lý Kho Hàng & Bán Hàng</h1>
+            <p id="user-info" class="text-sm text-gray-500 italic">Đang tải...</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Cột 1: Thêm Sản Phẩm Mới -->
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl card h-fit">
+                <h2 class="text-2xl font-semibold mb-6 text-gray-800 border-b pb-3">Thêm Sản Phẩm Mới</h2>
+                <form id="add-product-form" class="space-y-4">
+                    <div>
+                        <label for="product-name" class="block text-sm font-medium text-gray-700 mb-1">Tên Sản Phẩm:</label>
+                        <input type="text" id="product-name" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="product-stock" class="block text-sm font-medium text-gray-700 mb-1">Tồn Kho Ban Đầu:</label>
+                        <input type="number" id="product-stock" required min="0" value="0" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="product-price" class="block text-sm font-medium text-gray-700 mb-1">Giá Bán (VND):</label>
+                        <input type="number" id="product-price" required min="0" value="0" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <button type="submit" class="w-full bg-green-500 text-white py-2 rounded-lg font-semibold hover:bg-green-600 btn-primary flex items-center justify-center">
+                        <i class="fas fa-plus mr-2"></i> Thêm Sản Phẩm
+                    </button>
+                    <p id="add-status" class="text-sm text-center mt-2"></p>
+                </form>
+            </div>
+
+            <!-- Cột 2 & 3: Danh Sách Kho Hàng -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl card">
+                <h2 class="text-2xl font-semibold mb-6 text-gray-800 border-b pb-3">Danh Sách Kho Hàng</h2>
+                <div id="loading-indicator" class="text-center text-gray-500 p-4">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Đang tải dữ liệu...
+                </div>
+                <div id="inventory-list" class="space-y-4">
+                    <!-- Sản phẩm sẽ được render vào đây -->
+                </div>
+                <p id="empty-state" class="text-center text-gray-500 p-4 hidden">Chưa có sản phẩm nào. Vui lòng thêm sản phẩm mới.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal cho Nhập/Xuất hàng -->
+    <div id="action-modal-container" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl w-11/12 max-w-lg card">
+            <h3 id="action-modal-title" class="text-xl font-bold mb-4 text-gray-800"></h3>
+            <p class="text-gray-700 mb-4">Sản phẩm: <span id="action-modal-product-name" class="font-semibold"></span></p>
+
+            <form id="action-form" class="space-y-4">
+                <input type="hidden" id="action-product-id">
+                <input type="hidden" id="action-type">
+
+                <div>
+                    <label for="action-quantity" class="block text-sm font-medium text-gray-700 mb-1">Số lượng:</label>
+                    <input type="number" id="action-quantity" required min="1" value="1" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div class="flex space-x-4 pt-2">
+                    <button type="submit" id="action-submit-btn" class="w-1/2 text-white py-2 rounded-lg font-semibold btn-primary flex items-center justify-center"></button>
+                    <button type="button" id="action-cancel-btn" class="w-1/2 bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold hover:bg-gray-400">Hủy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, serverTimestamp, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // === Khai báo Biến Toàn Cục (GLOBAL VARIABLES) ===
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-sales-app';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId = null;
+
+        // === Helper Functions ===
+
+        /**
+         * Hiển thị thông báo modal (thay thế cho alert)
+         * @param {string} title - Tiêu đề thông báo
+         * @param {string} message - Nội dung thông báo
+         */
+        function showModal(title, message) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            document.getElementById('modal-container').classList.remove('hidden');
+            document.getElementById('modal-container').classList.add('flex');
+        }
+
+        document.getElementById('modal-close-btn').addEventListener('click', () => {
+            document.getElementById('modal-container').classList.add('hidden');
+            document.getElementById('modal-container').classList.remove('flex');
+        });
+
+        function formatCurrency(number) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+        }
+
+        function getInventoryRef() {
+            if (!db || !userId) {
+                console.error("Firebase hoặc UserID chưa sẵn sàng.");
+                return null;
+            }
+            // Đường dẫn bảo mật (Private Data): /artifacts/{appId}/users/{userId}/inventory_items
+            return collection(db, `artifacts/${appId}/users/${userId}/inventory_items`);
+        }
+
+        // === Firebase Initialization and Authentication ===
+        async function setupFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is missing. Data persistence will not work.");
+                    return;
+                }
+                
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Thiết lập persistence (duy trì phiên đăng nhập)
+                await setPersistence(auth, browserLocalPersistence);
+
+                // Đăng nhập bằng token tùy chỉnh (nếu có) hoặc ẩn danh
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-info').textContent = `ID Người Dùng: ${userId} (Dữ liệu lưu trữ riêng tư)`;
+                        loadInventoryListener();
+                    } else {
+                        userId = null;
+                        document.getElementById('user-info').textContent = 'Đang chờ xác thực...';
+                        document.getElementById('loading-indicator').textContent = 'Vui lòng chờ xác thực...';
+                    }
+                });
+
+            } catch (error) {
+                console.error("Lỗi khởi tạo Firebase:", error);
+                showModal("Lỗi Hệ Thống", "Không thể kết nối dịch vụ lưu trữ. Vui lòng thử lại sau.");
+            }
+        }
+
+        // === Data Manipulation Functions ===
+
+        /**
+         * Thêm sản phẩm mới vào kho
+         */
+        document.getElementById('add-product-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('product-name');
+            const stockInput = document.getElementById('product-stock');
+            const priceInput = document.getElementById('product-price');
+            const statusElement = document.getElementById('add-status');
+
+            const name = nameInput.value.trim();
+            const stock = parseInt(stockInput.value, 10);
+            const price = parseFloat(priceInput.value);
+
+            if (!name || isNaN(stock) || isNaN(price) || stock < 0 || price < 0) {
+                statusElement.textContent = 'Vui lòng nhập thông tin hợp lệ.';
+                statusElement.className = 'text-sm text-center mt-2 text-red-500';
+                return;
+            }
+
+            const inventoryRef = getInventoryRef();
+            if (!inventoryRef) return;
+
+            statusElement.textContent = 'Đang thêm...';
+            statusElement.className = 'text-sm text-center mt-2 text-gray-500';
+
+            try {
+                // Tạo ID dựa trên timestamp để đảm bảo tính duy nhất và không bị trùng lặp
+                const productId = Date.now().toString(); 
+                
+                await setDoc(doc(inventoryRef, productId), {
+                    id: productId,
+                    name: name,
+                    stock: stock,
+                    price: price,
+                    createdAt: serverTimestamp(),
+                    lastUpdated: serverTimestamp()
+                });
+
+                statusElement.textContent = 'Thêm sản phẩm thành công!';
+                statusElement.className = 'text-sm text-center mt-2 text-green-500';
+
+                // Reset form
+                nameInput.value = '';
+                stockInput.value = '0';
+                priceInput.value = '0';
+
+                // Tự động clear trạng thái sau 3 giây
+                setTimeout(() => statusElement.textContent = '', 3000);
+
+            } catch (error) {
+                console.error("Lỗi khi thêm sản phẩm:", error);
+                statusElement.textContent = 'Lỗi: Không thể thêm sản phẩm.';
+                statusElement.className = 'text-sm text-center mt-2 text-red-500';
+            }
+        });
+
+
+        /**
+         * Xử lý giao dịch Nhập/Xuất hàng (sử dụng Transaction để đảm bảo tính nhất quán)
+         * @param {string} productId - ID sản phẩm
+         * @param {string} type - 'import' (nhập) hoặc 'export' (xuất/bán)
+         * @param {number} quantity - Số lượng
+         */
+        async function processStockTransaction(productId, type, quantity) {
+            const inventoryRef = getInventoryRef();
+            if (!inventoryRef) return false;
+
+            const productDocRef = doc(inventoryRef, productId);
+            
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const docSnapshot = await transaction.get(productDocRef);
+
+                    if (!docSnapshot.exists()) {
+                        throw new Error("Sản phẩm không tồn tại!");
+                    }
+
+                    const product = docSnapshot.data();
+                    let newStock = product.stock;
+
+                    if (type === 'import') {
+                        // Nhập hàng: Tăng tồn kho
+                        newStock += quantity;
+                    } else if (type === 'export') {
+                        // Xuất hàng/Bán hàng: Giảm tồn kho
+                        if (newStock < quantity) {
+                            throw new Error(`Tồn kho (${newStock}) không đủ để xuất ${quantity} sản phẩm.`);
+                        }
+                        newStock -= quantity;
+                    }
+
+                    // Cập nhật tài liệu
+                    transaction.update(productDocRef, { 
+                        stock: newStock,
+                        lastUpdated: serverTimestamp() 
+                    });
+                });
+
+                return true; // Giao dịch thành công
+            } catch (error) {
+                console.error("Lỗi giao dịch:", error);
+                showModal("Lỗi Giao Dịch", error.message);
+                return false; // Giao dịch thất bại
+            }
+        }
+
+        // === Real-time Listener and Renderer ===
+
+        /**
+         * Thiết lập lắng nghe thời gian thực cho kho hàng
+         */
+        function loadInventoryListener() {
+            const inventoryRef = getInventoryRef();
+            if (!inventoryRef) return;
+
+            // Sử dụng onSnapshot để nghe cập nhật theo thời gian thực
+            onSnapshot(inventoryRef, (snapshot) => {
+                const items = [];
+                snapshot.forEach(doc => {
+                    items.push(doc.data());
+                });
+                renderInventory(items);
+                document.getElementById('loading-indicator').classList.add('hidden');
+            }, (error) => {
+                console.error("Lỗi lắng nghe dữ liệu:", error);
+                document.getElementById('loading-indicator').textContent = 'Lỗi tải dữ liệu. Vui lòng kiểm tra console.';
+            });
+        }
+
+        /**
+         * Render danh sách sản phẩm ra giao diện
+         * @param {Array<Object>} items - Danh sách sản phẩm
+         */
+        function renderInventory(items) {
+            const listContainer = document.getElementById('inventory-list');
+            const emptyState = document.getElementById('empty-state');
+            listContainer.innerHTML = ''; 
+
+            if (items.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            // Sắp xếp theo tên
+            items.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+            items.forEach(item => {
+                const stockColor = item.stock < 10 ? 'text-red-600 font-bold' : 'text-green-600';
+                
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition duration-150';
+                itemDiv.innerHTML = `
+                    <div class="mb-3 md:mb-0 md:w-1/2">
+                        <p class="text-lg font-bold text-gray-800">${item.name}</p>
+                        <p class="text-sm text-gray-500">Giá: ${formatCurrency(item.price)}</p>
+                    </div>
+                    <div class="flex items-center space-x-6">
+                        <div class="text-center">
+                            <p class="text-sm text-gray-500">Tồn Kho</p>
+                            <p class="text-2xl ${stockColor}">${item.stock}</p>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button data-id="${item.id}" data-name="${item.name}" data-type="import" 
+                                class="action-btn bg-blue-500 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-600 transition"
+                                title="Nhập Hàng">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                            <button data-id="${item.id}" data-name="${item.name}" data-type="export" 
+                                class="action-btn bg-red-500 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-red-600 transition"
+                                title="Xuất Hàng (Bán)">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(itemDiv);
+            });
+
+            // Gán sự kiện cho các nút hành động (Nhập/Xuất)
+            document.querySelectorAll('.action-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const name = e.currentTarget.dataset.name;
+                    const type = e.currentTarget.dataset.type;
+                    showActionModal(id, name, type);
+                });
+            });
+        }
+
+        // === Modal Action Handler ===
+
+        /**
+         * Hiển thị modal cho hành động Nhập/Xuất
+         * @param {string} id - ID sản phẩm
+         * @param {string} name - Tên sản phẩm
+         * @param {string} type - 'import' hoặc 'export'
+         */
+        function showActionModal(id, name, type) {
+            const modalContainer = document.getElementById('action-modal-container');
+            const titleElement = document.getElementById('action-modal-title');
+            const nameElement = document.getElementById('action-modal-product-name');
+            const submitBtn = document.getElementById('action-submit-btn');
+
+            document.getElementById('action-product-id').value = id;
+            document.getElementById('action-type').value = type;
+            document.getElementById('action-quantity').value = 1;
+            nameElement.textContent = name;
+            
+            if (type === 'import') {
+                titleElement.textContent = 'Nhập Hàng (Tăng Tồn Kho)';
+                submitBtn.textContent = 'Xác Nhận Nhập';
+                submitBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                submitBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            } else { // 'export'
+                titleElement.textContent = 'Xuất Hàng / Bán (Giảm Tồn Kho)';
+                submitBtn.textContent = 'Xác Nhận Xuất Bán';
+                submitBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                submitBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+            }
+
+            modalContainer.classList.remove('hidden');
+            modalContainer.classList.add('flex');
+        }
+
+        document.getElementById('action-cancel-btn').addEventListener('click', () => {
+            document.getElementById('action-modal-container').classList.add('hidden');
+            document.getElementById('action-modal-container').classList.remove('flex');
+        });
+
+        document.getElementById('action-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('action-product-id').value;
+            const type = document.getElementById('action-type').value;
+            const quantity = parseInt(document.getElementById('action-quantity').value, 10);
+
+            if (isNaN(quantity) || quantity <= 0) {
+                showModal("Lỗi", "Số lượng phải là số nguyên dương.");
+                return;
+            }
+
+            const success = await processStockTransaction(id, type, quantity);
+            
+            if (success) {
+                document.getElementById('action-modal-container').classList.add('hidden');
+                document.getElementById('action-modal-container').classList.remove('flex');
+                showModal("Thành Công", `${type === 'import' ? 'Nhập' : 'Xuất'} hàng ${quantity} sản phẩm thành công!`);
+            }
+        });
+
+        // === Start Application ===
+        setupFirebase();
+
+    </script>
+</body>
+</html>
